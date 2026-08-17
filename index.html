@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORQA — Assessing optimization quality in analytical method development</title>
+<style>
+:root{
+ --brown:#6B3E26; --mbrown:#8B5A2B; --orange:#F28C28; --gold:#F4C542;
+ --beige:#EFE3D2; --cream:#FAF7F2; --card:#FFFDF9; --border:#DDD6CC;
+ --text:#3E2A1C; --muted:#8A7561;
+ --m1:#6B3E26; --m2:#F28C28; --m3:#F4C542; --m4:#8A9A5B; --m5:#7A3B3B;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:"Inter","Segoe UI",Helvetica,Arial,sans-serif;color:var(--text);
+ background:var(--cream);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;font-weight:600}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+
+header{background:var(--card);border-bottom:1px solid var(--border);padding:10px 22px;
+ display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:30}
+.title{font-size:32px;font-weight:700;color:var(--brown);letter-spacing:-.02em;line-height:1}
+.sub{font-size:16px;color:var(--muted);line-height:1.2}
+.prog{margin-left:auto;display:flex;align-items:center;gap:10px}
+.prog-txt{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.prog-track{width:110px;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--brown);width:0;transition:width .3s ease}
+
+.chips{background:var(--card);border-bottom:1px solid var(--border);padding:7px 22px;
+ display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:56px;z-index:29}
+.chips-lbl{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:20px;
+ border:1px solid var(--border);background:var(--cream);color:var(--text);font-size:13px;transition:.15s}
+.chip:hover{border-color:var(--orange)}
+.chip.on{background:var(--brown);border-color:var(--brown);color:#fff}
+.chip .swatch{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
+.chip .sc{font-variant-numeric:tabular-nums;opacity:.85;font-size:12px}
+.chip-add{border-style:dashed;color:var(--mbrown)}
+.chip-x{border:none;background:none;color:inherit;opacity:.6;padding:0 0 0 2px;font-size:14px;line-height:1}
+.chip-x:hover{opacity:1}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:14px 22px 40px;
+ max-width:1560px;margin:0 auto;align-items:start}
+@media (max-width:1080px){main{grid-template-columns:1fr}}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;
+ box-shadow:0 1px 2px rgba(107,62,38,.05)}
+.p-head{padding:9px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.p-head h2{font-size:20px;font-weight:600}
+.p-head .note{font-size:12px;color:var(--muted);margin-left:auto}
+
+.meta{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:8px;padding:10px 15px}
+@media (max-width:900px){.meta{grid-template-columns:1fr 1fr}}
+.f label{display:block;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.f input{width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:8px;
+ font-family:inherit;font-size:13.5px;background:#fff;color:var(--text)}
+.f input:focus{border-color:var(--orange);outline:none}
+.ref-btn{align-self:end;padding:6px 11px;border:1px solid var(--border);border-radius:8px;
+ background:var(--cream);color:var(--mbrown);font-size:12.5px;white-space:nowrap}
+.ref-btn:hover{border-color:var(--orange);color:var(--orange)}
+.ref-row{padding:0 15px 10px}
+
+.card{border-top:1px solid var(--border)}
+.card:first-child{border-top:none}
+.head{display:flex;gap:11px;align-items:flex-start;width:100%;padding:10px 15px;background:none;
+ border:none;text-align:left;color:var(--text);transition:background .12s}
+.head:hover{background:var(--cream)}
+.card.done .head{cursor:default}
+.card.done .head:hover{background:none}
+.num{flex:0 0 24px;height:24px;border-radius:7px;background:var(--cream);color:var(--muted);
+ display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
+ font-variant-numeric:tabular-nums;transition:.15s}
+.card.done .num{background:var(--brown);color:#fff}
+.body{flex:1;min-width:0}
+.ctitle{font-size:16px;font-weight:600;line-height:1.25}
+.q{font-size:13px;color:var(--muted);margin-top:1px}
+.cue{display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:12.5px;color:var(--mbrown)}
+.chev{transition:transform .2s;display:inline-block}
+.card.open .chev{transform:rotate(180deg)}
+.picked{display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap}
+.check{flex:0 0 16px;height:16px;border-radius:50%;background:var(--brown);color:#fff;font-size:9px;
+ display:flex;align-items:center;justify-content:center}
+.ptxt{font-size:13.5px}
+.state{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.change{background:none;border:none;color:var(--mbrown);font-size:12px;padding:0;
+ text-decoration:underline;text-underline-offset:2px;margin-left:auto}
+.change:hover{color:var(--orange)}
+.opts{padding:0 15px 11px 50px;display:flex;flex-direction:column;gap:1px}
+.opt{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid transparent;
+ border-radius:8px;background:none;text-align:left;width:100%;color:var(--text);transition:.12s}
+.opt:hover{background:var(--cream);border-color:var(--border)}
+.dot{flex:0 0 13px;height:13px;border-radius:50%;border:1.5px solid var(--border);transition:.12s}
+.opt:hover .dot{border-color:var(--orange);border-width:4px}
+
+aside{position:sticky;top:100px}
+@media (max-width:1080px){aside{position:static}}
+.viz{padding:12px 12px 4px}
+.viz svg{width:100%;height:auto;display:block}
+.scorebox{padding:4px 15px 12px;text-align:center}
+.sc-pill{display:inline-flex;flex-direction:column;align-items:center;gap:1px;
+ padding:10px 22px 9px;border-radius:16px;background:#F1EAE0;border:1.5px solid var(--border);
+ transition:background .25s ease,border-color .25s ease,color .25s ease;min-width:150px}
+.sc-main{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.sc-of{font-size:12px;opacity:.75;margin-top:-2px}
+.sc-band{font-size:13.5px;font-weight:600;margin-top:4px;letter-spacing:.01em}
+.gap{display:inline-flex;align-items:center;gap:7px;margin-top:8px;padding:4px 12px;border-radius:20px;
+ background:var(--cream);border:1px solid var(--border);font-size:12.5px;color:var(--muted)}
+.gap b{font-size:14px;color:var(--mbrown);font-variant-numeric:tabular-nums}
+.acts{border-top:1px solid var(--border);padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btn{padding:7px 9px;border:1px solid var(--border);border-radius:9px;background:var(--card);
+ color:var(--text);font-size:12.5px;transition:.12s}
+.btn:hover:not(:disabled){background:var(--cream);border-color:var(--orange);color:var(--orange)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-p{background:var(--brown);border-color:var(--brown);color:#fff;grid-column:1/-1}
+.btn-p:hover:not(:disabled){background:var(--orange);border-color:var(--orange);color:#fff}
+.btn-e{background:var(--gold);border-color:var(--gold);color:var(--text)}
+.btn-e:hover:not(:disabled){background:var(--orange);border-color:var(--orange);color:#fff}
+.btn-r{border:none;color:var(--muted);grid-column:1/-1;font-size:12px;padding:3px}
+.btn-r:hover{color:var(--brown)}
+
+.compare{max-width:1560px;margin:0 auto;padding:0 22px 50px}
+.cmp-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;margin-top:12px}
+@media (max-width:1080px){.cmp-grid{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 9px;text-align:left;border-bottom:1px solid var(--border)}
+th{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.best{font-weight:700;color:var(--brown);background:#FBF3E6}
+.rank{display:flex;flex-direction:column;gap:7px;padding:12px 15px}
+.rk{display:flex;align-items:center;gap:10px;padding:7px 11px;border:1px solid var(--border);
+ border-radius:10px;background:var(--cream)}
+.rk .pos{font-size:17px;width:26px;text-align:center}
+.rk .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk .val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--brown)}
+.bar{height:7px;border-radius:4px;background:var(--border);overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;border-radius:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px;padding:10px 15px 0}
+.lg{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;
+ border:1px solid var(--border);background:var(--cream);font-size:12px}
+.lg.off{opacity:.35}
+.interp{padding:12px 15px;font-size:13.5px}
+.interp li{margin-bottom:5px}
+.interp ul{margin:0;padding-left:18px}
+.tip{position:fixed;pointer-events:none;background:var(--brown);color:#fff;padding:7px 10px;
+ border-radius:8px;font-size:12px;line-height:1.35;opacity:0;transition:opacity .12s;z-index:60;max-width:230px}
+.tip.on{opacity:1}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--brown);color:#fff;
+ padding:9px 15px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:70}
+.toast.on{opacity:1}
+#report{display:none}
+@media print{
+ body{background:#fff}
+ header,.chips,aside,.acts,.toast,.tip,.ref-btn{display:none!important}
+ main,.compare{display:block;padding:0}
+ #assess{display:none}
+ #report{display:block}
+ #report table{width:100%;border-collapse:collapse;font-size:10.5pt}
+ #report th,#report td{border-bottom:1px solid #ccc;padding:5px 4px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.blk{transition:height .3s ease, fill .2s ease}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="title">ORQA</div>
+    <div class="sub">Assessing optimization quality in analytical method development</div>
+  </div>
+  <div class="prog">
+    <span class="prog-txt" id="progTxt">0 of 10</span>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+</header>
+
+<div class="chips">
+  <span class="chips-lbl">Compare methods</span>
+  <span id="chipRow" style="display:contents"></span>
+</div>
+
+<main>
+  <div id="assess">
+    <section class="panel" style="margin-bottom:12px">
+      <div class="meta" id="metaRow">
+        <div class="f"><label for="m-name">Method name</label><input id="m-name" placeholder="Green RP-HPLC for sitagliptin"></div>
+        <div class="f"><label for="m-tech">Technique</label><input id="m-tech" placeholder="RP-HPLC-DAD"></div>
+        <div class="f"><label for="m-analyte">Analyte</label><input id="m-analyte" placeholder="Sitagliptin"></div>
+        <div class="f"><label for="m-matrix">Matrix</label><input id="m-matrix" placeholder="Tablet"></div>
+        <button class="ref-btn" id="refToggle">Reference</button>
+      </div>
+      <div class="ref-row" id="refRow" hidden>
+        <div class="f"><input id="m-ref" placeholder="Author, journal, year, DOI"></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="p-head"><h2>Assessment criteria</h2><span class="note" id="activeName">Method 1</span></div>
+      <div id="cards"></div>
+    </section>
+  </div>
+
+  <aside>
+    <div class="panel">
+      <div class="viz" id="viz"></div>
+      <div class="scorebox">
+        <div class="sc-pill" id="scPill">
+          <span class="sc-main" id="scMain">0</span><span class="sc-of">/100</span>
+          <span class="sc-band" id="scBand">Assessment in progress</span>
+        </div>
+        <div class="gap" id="gapBadge">Optimization gap <b id="gapVal">100</b></div>
+      </div>
+      <div class="acts">
+        <button class="btn btn-p" id="btnSave" disabled>Save assessment</button>
+        <button class="btn btn-e" id="btnPdf" disabled>PDF</button>
+        <button class="btn btn-e" id="btnXls" disabled>Excel</button>
+        <button class="btn" id="btnPng" disabled>PNG</button>
+        <button class="btn" id="btnSvg" disabled>SVG</button>
+        <button class="btn btn-r" id="btnReset">Reset this method</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="compare" id="compare" hidden>
+  <section class="panel">
+    <div class="p-head"><h2>Method comparison</h2><span class="note" id="cmpNote"></span></div>
+    <div class="cmp-grid" style="padding:12px 15px 15px">
+      <div>
+        <div class="panel" style="margin-bottom:12px">
+          <div class="p-head"><h2 style="font-size:15px">Overall score</h2></div>
+          <div class="rank" id="rankBox"></div>
+        </div>
+        <div class="panel">
+          <div class="p-head"><h2 style="font-size:15px">Criterion comparison</h2></div>
+          <div style="overflow-x:auto;padding:0 4px 8px"><table id="cmpTable"></table></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel" style="margin-bottom:12px">
+          <div class="p-head"><h2 style="font-size:15px">Profile overlay</h2></div>
+          <div class="legend" id="radarLegend"></div>
+          <div style="padding:6px 10px 12px" id="radarBox"></div>
+        </div>
+        <div class="panel" style="margin-bottom:12px">
+          <div class="p-head"><h2 style="font-size:15px">Optimization gap</h2></div>
+          <div style="padding:0 4px 8px"><table id="gapTable"></table></div>
+        </div>
+        <div class="panel">
+          <div class="p-head"><h2 style="font-size:15px">Interpretation</h2></div>
+          <div class="interp" id="interp"></div>
+        </div>
+      </div>
+    </div>
+    <div class="acts" style="grid-template-columns:repeat(4,1fr)">
+      <button class="btn btn-e" id="cmpXls">Export comparison</button>
+      <button class="btn btn-e" id="cmpPdf">Comparison PDF</button>
+      <button class="btn" id="cmpPng">Radar PNG</button>
+      <button class="btn" id="cmpSvg">Radar SVG</button>
+    </div>
+  </section>
+</div>
+
+<div id="report"></div>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- criteria and scoring logic (unchanged) ---------- */
+const CRITERIA=[
+ {n:1,title:"Optimization strategy",short:"Strategy",q:"What optimization approach was applied?",
+  desc:"The systematic approach used to explore experimental conditions.",
+  opts:[["Machine learning optimization",10],["Analytical Quality by Design (AQbD)",9],
+        ["Design of Experiments — full factorial, BBD, CCD",8],["Fractional factorial design",7],
+        ["One factor at a time (OFAT)",5],["No optimization",0]]},
+ {n:2,title:"Justification of selected parameters",short:"Justification",q:"How were the optimized parameters justified?",
+  desc:"Scientific and literature basis for choosing the studied factors.",
+  opts:[["Scientific reasoning supported by literature",10],["Literature support only",6],["No justification given",2]]},
+ {n:3,title:"Effect of optimization on analytical performance",short:"Performance",q:"How much did analytical performance improve?",
+  desc:"Measured gain in performance attributable to optimization.",
+  opts:[["Significant improvement",10],["Moderate improvement",8],["Minor improvement",5],["No improvement",0]]},
+ {n:4,title:"Prediction accuracy and model fitting",short:"Prediction",q:"How well did the model predict the optimum?",
+  desc:"Agreement between predicted and experimental optimum.",
+  opts:[["Prediction error below 2%, R² at least 0.99",10],["Prediction error 2–5%, R² 0.95–0.98",6],
+        ["Prediction error above 5%, or R² below 0.95",2],["Not reported",0]]},
+ {n:5,title:"ANOVA model significance",short:"ANOVA",q:"What was the statistical significance of the model?",
+  desc:"Statistical evidence that the model describes the response.",
+  opts:[["p below 0.001",10],["p between 0.001 and 0.05",6],["p above 0.05",2],["Not reported",0]]},
+ {n:6,title:"Robustness evaluation",short:"Robustness",q:"How was robustness evaluated after optimization?",
+  desc:"Deliberate variation of parameters around the optimum.",
+  opts:[["Three or more parameters tested",10],["One or two parameters tested",6],["No robustness testing",0]]},
+ {n:7,title:"Time efficiency after optimization",short:"Time",q:"Did optimization reduce the analysis time?",
+  desc:"Reduction in run or total analysis time.",
+  opts:[["Clear reduction in analysis time",10],["Slight reduction",6],["No reduction",2]]},
+ {n:8,title:"Reproducibility",short:"Reproducibility",q:"What level of reproducibility was demonstrated?",
+  desc:"Precision of the optimized condition on repetition.",
+  opts:[["RSD below 2%",10],["RSD between 2 and 5%",6],["RSD above 5%",2]]},
+ {n:9,title:"Cost and accessibility",short:"Accessibility",q:"How accessible were the optimization tools?",
+  desc:"Cost and availability of the software or platform used.",
+  opts:[["Free, open-source, or highly accessible",10],["Licensed but affordable software",6],["Expensive or limited access",2]]},
+ {n:10,title:"Data visualization capability",short:"Visualization",q:"What level of data visualization was provided?",
+  desc:"Graphical representation of the optimization outcome.",
+  opts:[["Advanced — 3D, contour, or desirability plots",10],["Basic — two-dimensional plots only",6],["Poor or no visualization",2]]}
+];
+const BANDS=[
+ {min:75,label:"Excellent optimization",color:"#7A3F17",ink:"#FFF9F0",edge:"#63320F"},
+ {min:60,label:"Good optimization",     color:"#A85A18",ink:"#FFF9F0",edge:"#8A4A12"},
+ {min:40,label:"Acceptable optimization",color:"#EE8C1E",ink:"#4A2E14",edge:"#D27712"},
+ {min:0, label:"Poor optimization",     color:"#F5B739",ink:"#4A2E14",edge:"#D9A02E"}];
+const bandInfo=t=>BANDS.find(b=>t>=b.min);
+const bandOf=t=>bandInfo(t).label;
+const scoreColor=s=>s>=10?"#7A3F17":s>=8?"#A85A18":s>=6?"#EE8C1E":s>=4?"#F5B739":s>=1?"#FBE3A8":"#CFC6B8";
+const scoreInk=s=>s>=8?"#FFF9F0":"#4A2E14";
+const scoreEdge=s=>s>=10?"#63320F":s>=8?"#8A4A1244":s>=6?"#D2771244":s>=4?"#D9A02E55":s>=1?"#E8CB8055":"#B8AE9F";
+const MCOL=["#6B3E26","#F28C28","#F4C542","#8A9A5B","#7A3B3B"];
+const MSHAPE=["circle","square","triangle","diamond","cross"];
+
+/* ---------- state ---------- */
+const blank=i=>({id:"m"+Date.now()+Math.random().toString(36).slice(2,6),
+  name:"Method "+i,tech:"",analyte:"",matrix:"",ref:"",answers:new Array(10).fill(null)});
+let methods=[blank(1)];
+let activeId=methods[0].id;
+let openIndex=null;
+
+const active=()=>methods.find(m=>m.id===activeId);
+const totalOf=m=>m.answers.reduce((t,a)=>t+(a?a.score:0),0);
+const doneCount=m=>m.answers.filter(a=>a!==null).length;
+const isDone=m=>doneCount(m)===10;
+const completed=()=>methods.filter(isDone);
+
+function toast(msg){const e=document.getElementById("toast");e.textContent=msg;e.classList.add("on");
+ clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),2200);}
+
+/* ---------- tooltip ---------- */
+const tipEl=document.getElementById("tip");
+function showTip(html,x,y){tipEl.innerHTML=html;tipEl.classList.add("on");
+ const r=tipEl.getBoundingClientRect();
+ tipEl.style.left=Math.min(x+14,innerWidth-r.width-10)+"px";
+ tipEl.style.top=Math.max(y-r.height-10,8)+"px";}
+function hideTip(){tipEl.classList.remove("on");}
+
+/* ---------- chips ---------- */
+function renderChips(){
+ const row=document.getElementById("chipRow");row.innerHTML="";
+ methods.forEach((m,i)=>{
+  const b=document.createElement("button");
+  b.className="chip"+(m.id===activeId?" on":"");
+  b.innerHTML='<span class="swatch" style="background:'+MCOL[i]+'"></span>'+
+   '<span>'+(m.name||"Method "+(i+1))+'</span>'+
+   (isDone(m)?'<span class="sc">'+totalOf(m)+'</span>':'<span class="sc">'+doneCount(m)+'/10</span>');
+  b.onclick=()=>{activeId=m.id;openIndex=null;render();};
+  if(methods.length>1){
+   const x=document.createElement("button");
+   x.className="chip-x";x.innerHTML="&times;";x.title="Remove method";
+   x.onclick=e=>{e.stopPropagation();
+    methods=methods.filter(z=>z.id!==m.id);
+    if(activeId===m.id)activeId=methods[0].id;
+    render();};
+   b.appendChild(x);
+  }
+  row.appendChild(b);
+ });
+ if(methods.length<5){
+  const a=document.createElement("button");
+  a.className="chip chip-add";a.textContent="+ Add comparison method";
+  a.onclick=()=>{const m=blank(methods.length+1);methods.push(m);activeId=m.id;openIndex=null;render();};
+  row.appendChild(a);
+ }
+}
+
+/* ---------- meta ---------- */
+const METAF=[["m-name","name"],["m-tech","tech"],["m-analyte","analyte"],["m-matrix","matrix"],["m-ref","ref"]];
+METAF.forEach(([id,key])=>{
+ document.getElementById(id).addEventListener("input",e=>{
+  active()[key]=e.target.value;
+  if(key==="name"){renderChips();document.getElementById("activeName").textContent=e.target.value||"Untitled";renderCompare();}
+ });
+});
+document.getElementById("refToggle").onclick=()=>{
+ const r=document.getElementById("refRow");r.hidden=!r.hidden;};
+function fillMeta(){const m=active();METAF.forEach(([id,key])=>document.getElementById(id).value=m[key]||"");
+ document.getElementById("activeName").textContent=m.name||"Untitled";}
+
+/* ---------- criterion cards ---------- */
+function renderCards(){
+ const m=active(),wrap=document.getElementById("cards");wrap.innerHTML="";
+ CRITERIA.forEach((c,i)=>{
+  const a=m.answers[i],open=openIndex===i&&!a;
+  const card=document.createElement("div");
+  card.className="card"+(a?" done":"")+(open?" open":"");
+  const head=document.createElement("button");
+  head.className="head";head.setAttribute("aria-expanded",open?"true":"false");
+  let inner='<div class="num">'+c.n+'</div><div class="body"><div class="ctitle">'+c.title+'</div>';
+  if(a){inner+='<div class="picked"><span class="check">&#10003;</span><span class="ptxt">'+a.label+
+        '</span><span class="state">Completed</span></div>';}
+  else{inner+='<div class="q">'+c.q+'</div><span class="cue">'+(open?"Choose one":"Select answer")+
+        ' <span class="chev">&#9662;</span></span>';}
+  head.innerHTML=inner+'</div>';
+  if(!a)head.onclick=()=>{openIndex=openIndex===i?null:i;renderCards();};
+  card.appendChild(head);
+  if(a){const ch=document.createElement("button");ch.className="change";ch.textContent="Change";
+   ch.onclick=e=>{e.stopPropagation();m.answers[i]=null;openIndex=i;render();};
+   head.querySelector(".picked").appendChild(ch);}
+  if(open){const box=document.createElement("div");box.className="opts";
+   c.opts.forEach(([label,score])=>{const b=document.createElement("button");b.className="opt";
+    b.innerHTML='<span class="dot"></span><span>'+label+'</span>';
+    b.onclick=()=>{m.answers[i]={label,score};
+     const nx=m.answers.findIndex(x=>x===null);openIndex=nx===-1?null:nx;render();};
+    box.appendChild(b);});
+   card.appendChild(box);}
+  wrap.appendChild(card);
+ });
+}
+
+/* ---------- stacked visualization (no reserved deficit space) ---------- */
+function stackSVG(m,forExport){
+ const W=330,BW=150,GAP=3,PAD=10,LX=BW+14;
+ const vals=m.answers.map(a=>a?a.score:null);
+ let hs=vals.map(v=>v===null?14:Math.max(15,v*3.2));
+ const TOP=forExport?56:PAD;
+ const H=TOP+PAD+hs.reduce((a,b)=>a+b,0)+GAP*9;
+ let y=TOP,body="";
+ if(forExport){
+  body+='<text x="'+(W/2)+'" y="24" text-anchor="middle" dominant-baseline="central" font-size="26" font-weight="700" font-family="Inter,Arial,sans-serif" fill="#7A3F17" letter-spacing="0.5">ORQA</text>'+
+        '<text x="'+(W/2)+'" y="42" text-anchor="middle" dominant-baseline="central" font-size="8.6" font-family="Inter,Arial,sans-serif" fill="#8A7561">Assessing optimization quality in analytical method development</text>';
+ }
+ CRITERIA.forEach((c,i)=>{
+  const v=vals[i],h=hs[i];
+  const fill=v===null?"#FFFFFF":scoreColor(v);
+  body+='<rect class="blk" data-i="'+i+'" x="0.5" y="'+y+'" width="'+(BW-1)+'" height="'+h+'" rx="5" fill="'+fill+'"'+
+        (v===null?' stroke="#DDD6CC" stroke-width="1" stroke-dasharray="3 2"'
+                 :' stroke="'+scoreEdge(v)+'" stroke-width="1"')+'/>';
+  if(v!==null)
+   body+='<text x="'+(BW/2)+'" y="'+(y+h/2)+'" text-anchor="middle" dominant-baseline="central" font-size="10.5" font-weight="700" font-family="Inter,Arial,sans-serif" fill="'+scoreInk(v)+'">'+v+'</text>';
+  body+='<text x="'+LX+'" y="'+(y+h/2)+'" dominant-baseline="central" font-size="10.5" font-family="Inter,Arial,sans-serif" fill="'+(v===null?"#8A7561":"#3E2A1C")+'">'+c.n+'  '+c.short+'</text>';
+  y+=h+GAP;
+ });
+ let foot="",FH=0;
+ if(forExport&&isDone(m)){
+  const t=totalOf(m),bi=bandInfo(t);FH=64;
+  foot='<rect x="0" y="'+(H+8)+'" width="'+W+'" height="48" rx="12" fill="'+bi.color+'" stroke="'+bi.edge+'" stroke-width="1"/>'+
+   '<text x="'+(W/2)+'" y="'+(H+29)+'" text-anchor="middle" dominant-baseline="central" font-size="21" font-weight="700" font-family="Inter,Arial,sans-serif" fill="'+bi.ink+'">'+t+' / 100</text>'+
+   '<text x="'+(W/2)+'" y="'+(H+46)+'" text-anchor="middle" dominant-baseline="central" font-size="10.5" font-weight="600" font-family="Inter,Arial,sans-serif" fill="'+bi.ink+'">'+bi.label+'</text>';
+ }
+ const TH=H+FH;
+ return '<svg viewBox="0 0 '+W+' '+TH+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ORQA profile, score '+totalOf(m)+' of 100">'+
+        (forExport?'<rect width="'+W+'" height="'+TH+'" fill="#FFFDF9"/>':'')+body+foot+'</svg>';
+}
+
+function bindStack(){
+ document.querySelectorAll("#viz rect.blk").forEach(r=>{
+  r.style.cursor="pointer";
+  r.addEventListener("mousemove",e=>{
+   const i=+r.dataset.i,c=CRITERIA[i],a=active().answers[i];
+   showTip('<b>'+c.title+'</b><br>'+c.desc+'<br>Obtained '+(a?a.score:"—")+' of 10',e.clientX,e.clientY);
+  });
+  r.addEventListener("mouseleave",hideTip);
+ });
+}
+
+/* ---------- radar ---------- */
+function radarSVG(list,hidden,forExport){
+ const S=320,cx=S/2,cy=S/2+4,R=104;
+ const ang=i=>(-90+i*36)*Math.PI/180;
+ const pt=(i,v)=>[cx+Math.cos(ang(i))*R*v/10,cy+Math.sin(ang(i))*R*v/10];
+ let g="";
+ [2,4,6,8,10].forEach(r=>{
+  let p=CRITERIA.map((_,i)=>pt(i,r).join(",")).join(" ");
+  g+='<polygon points="'+p+'" fill="none" stroke="#DDD6CC" stroke-width="0.7"/>';
+ });
+ CRITERIA.forEach((c,i)=>{
+  const e=pt(i,10);
+  g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+e[0]+'" y2="'+e[1]+'" stroke="#DDD6CC" stroke-width="0.7"/>';
+  const l=[cx+Math.cos(ang(i))*(R+17),cy+Math.sin(ang(i))*(R+17)];
+  const anch=Math.abs(l[0]-cx)<6?"middle":(l[0]>cx?"start":"end");
+  g+='<text x="'+l[0]+'" y="'+l[1]+'" text-anchor="'+anch+'" dominant-baseline="central" font-size="9" font-family="Inter,Arial,sans-serif" fill="#8A7561">'+c.short+'</text>';
+ });
+ list.forEach((m,k)=>{
+  if(hidden.has(m.id))return;
+  const idx=methods.findIndex(z=>z.id===m.id),col=MCOL[idx];
+  const p=CRITERIA.map((_,i)=>pt(i,m.answers[i]?m.answers[i].score:0).join(",")).join(" ");
+  g+='<polygon points="'+p+'" fill="'+col+'" fill-opacity="0.13" stroke="'+col+'" stroke-width="1.8" stroke-linejoin="round"/>';
+  CRITERIA.forEach((_,i)=>{
+   const v=m.answers[i]?m.answers[i].score:0,q=pt(i,v);
+   g+=marker(MSHAPE[idx],q[0],q[1],col);
+  });
+ });
+ return '<svg viewBox="0 0 '+S+' '+(S+8)+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Radar comparison of method profiles">'+
+        (forExport?'<rect width="'+S+'" height="'+(S+8)+'" fill="#FFFDF9"/>':'')+g+'</svg>';
+}
+function marker(shape,x,y,col){
+ const s=3.1;
+ if(shape==="circle")return '<circle cx="'+x+'" cy="'+y+'" r="'+s+'" fill="'+col+'"/>';
+ if(shape==="square")return '<rect x="'+(x-s)+'" y="'+(y-s)+'" width="'+(2*s)+'" height="'+(2*s)+'" fill="'+col+'"/>';
+ if(shape==="triangle")return '<polygon points="'+x+','+(y-s-1)+' '+(x+s+1)+','+(y+s)+' '+(x-s-1)+','+(y+s)+'" fill="'+col+'"/>';
+ if(shape==="diamond")return '<polygon points="'+x+','+(y-s-1)+' '+(x+s+1)+','+y+' '+x+','+(y+s+1)+' '+(x-s-1)+','+y+'" fill="'+col+'"/>';
+ return '<path d="M'+(x-s)+','+(y-s)+'L'+(x+s)+','+(y+s)+'M'+(x+s)+','+(y-s)+'L'+(x-s)+','+(y+s)+'" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/>';
+}
+let hiddenM=new Set();
+
+/* ---------- comparison ---------- */
+function renderCompare(){
+ const box=document.getElementById("compare");
+ const list=completed();
+ if(list.length<2){box.hidden=true;return;}
+ box.hidden=false;
+ document.getElementById("cmpNote").textContent=list.length+" completed methods";
+
+ const sorted=[...list].sort((a,b)=>totalOf(b)-totalOf(a));
+ const medals=["\uD83E\uDD47","\uD83E\uDD48","\uD83E\uDD49"];
+ const rb=document.getElementById("rankBox");rb.innerHTML="";
+ sorted.forEach((m,i)=>{
+  const idx=methods.findIndex(z=>z.id===m.id),t=totalOf(m);
+  const d=document.createElement("div");d.className="rk";
+  d.innerHTML='<span class="pos">'+(medals[i]||(i+1))+'</span>'+
+   '<span class="nm"><span>'+m.name+'</span><span class="bar"><i style="width:'+t+'%;background:'+MCOL[idx]+'"></i></span></span>'+
+   '<span class="val" style="color:'+bandInfo(t).color+'">'+t+'</span>';
+  rb.appendChild(d);
+ });
+
+ let th='<thead><tr><th>Criterion</th>'+list.map(m=>'<th class="n">'+m.name+'</th>').join("")+'</tr></thead><tbody>';
+ CRITERIA.forEach((c,i)=>{
+  const vals=list.map(m=>m.answers[i].score),mx=Math.max(...vals);
+  th+='<tr><td>'+c.n+'  '+c.short+'</td>'+
+      vals.map(v=>'<td class="n'+(v===mx?" best":"")+'">'+v+'</td>').join("")+'</tr>';
+ });
+ const tots=list.map(totalOf),mxt=Math.max(...tots);
+ th+='<tr><td style="font-weight:700">Total</td>'+tots.map(v=>'<td class="n'+(v===mxt?" best":"")+'" style="font-weight:700">'+v+'</td>').join("")+'</tr></tbody>';
+ document.getElementById("cmpTable").innerHTML=th;
+
+ const lg=document.getElementById("radarLegend");lg.innerHTML="";
+ list.forEach(m=>{
+  const idx=methods.findIndex(z=>z.id===m.id);
+  const b=document.createElement("button");
+  b.className="lg"+(hiddenM.has(m.id)?" off":"");
+  b.innerHTML='<span class="swatch" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+MCOL[idx]+'"></span>'+m.name;
+  b.onclick=()=>{hiddenM.has(m.id)?hiddenM.delete(m.id):hiddenM.add(m.id);renderCompare();};
+  lg.appendChild(b);
+ });
+ document.getElementById("radarBox").innerHTML=radarSVG(list,hiddenM,false);
+
+ let gt='<thead><tr><th>Method</th><th class="n">Score</th><th class="n">Gap</th></tr></thead><tbody>';
+ sorted.forEach(m=>{const t=totalOf(m);
+  gt+='<tr><td>'+m.name+'</td><td class="n"><span style="display:inline-block;padding:1px 9px;border-radius:20px;background:'+bandInfo(t).color+';color:'+bandInfo(t).ink+';font-weight:700">'+t+'</span></td><td class="n"><span style="display:inline-block;padding:1px 8px;border-radius:20px;background:#FBF3E6;border:1px solid var(--border)">'+(100-t)+'</span></td></tr>';});
+ document.getElementById("gapTable").innerHTML=gt+'</tbody>';
+
+ document.getElementById("interp").innerHTML="<ul>"+interpret(list).map(s=>"<li>"+s+"</li>").join("")+"</ul>";
+}
+
+function interpret(list){
+ const out=[],tots=list.map(totalOf);
+ const top=list[tots.indexOf(Math.max(...tots))];
+ out.push("<b>"+top.name+"</b> achieved the highest overall optimization score ("+totalOf(top)+" of 100, "+bandOf(totalOf(top))+").");
+ const sd=m=>{const v=m.answers.map(a=>a.score),mu=v.reduce((a,b)=>a+b,0)/10;
+  return Math.sqrt(v.reduce((s,x)=>s+(x-mu)*(x-mu),0)/10);};
+ const bal=[...list].sort((a,b)=>sd(a)-sd(b))[0];
+ out.push("<b>"+bal.name+"</b> showed the most balanced optimization profile across the ten criteria.");
+ [[0,"optimization strategy"],[5,"robustness evaluation"],[8,"accessibility of optimization tools"]].forEach(([i,lbl])=>{
+  const vals=list.map(m=>m.answers[i].score),mx=Math.max(...vals);
+  const win=list.filter(m=>m.answers[i].score===mx);
+  if(win.length===1&&mx>Math.min(...vals))
+   out.push("<b>"+win[0].name+"</b> performed best in "+lbl+".");
+ });
+ const low=list[tots.indexOf(Math.min(...tots))];
+ const weak=CRITERIA.map((c,i)=>({c,v:low.answers[i].score})).filter(x=>x.v<=2)
+   .map(x=>x.c.short.toLowerCase());
+ if(weak.length) out.push("<b>"+low.name+"</b> requires improvement in "+weak.slice(0,3).join(", ")+".");
+ return out;
+}
+
+/* ---------- render ---------- */
+function render(){
+ renderChips();fillMeta();renderCards();
+ const m=active(),t=totalOf(m),n=doneCount(m),done=isDone(m);
+ document.getElementById("progTxt").textContent=n+" of 10";
+ document.getElementById("progFill").style.width=(n*10)+"%";
+ document.getElementById("viz").innerHTML=stackSVG(m,false);bindStack();
+ document.getElementById("scMain").textContent=t;
+ const pill=document.getElementById("scPill"),bi=bandInfo(t);
+ document.getElementById("scBand").textContent=done?bi.label:"Assessment in progress";
+ if(done){pill.style.background=bi.color;pill.style.borderColor=bi.edge;pill.style.color=bi.ink;}
+ else{pill.style.background="#F1EAE0";pill.style.borderColor="var(--border)";pill.style.color="var(--muted)";}
+ document.getElementById("gapVal").textContent=100-t;
+ ["btnSave","btnPdf","btnXls","btnPng","btnSvg"].forEach(id=>document.getElementById(id).disabled=!done);
+ renderCompare();
+}
+
+/* ---------- exports ---------- */
+function dl(blob,fn){const u=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=u;a.download=fn;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+const csvify=rows=>rows.map(r=>r.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\n");
+const safe=s=>(s||"OMAS").replace(/\W+/g,"_");
+
+function svgToPng(svg,w,h,fn){
+ const img=new Image(),k=3;
+ img.onload=()=>{const cv=document.createElement("canvas");cv.width=w*k;cv.height=h*k;
+  const x=cv.getContext("2d");x.fillStyle="#FFFDF9";x.fillRect(0,0,cv.width,cv.height);
+  x.drawImage(img,0,0,cv.width,cv.height);
+  cv.toBlob(b=>{dl(b,fn);toast("PNG downloaded");});};
+ img.onerror=()=>toast("PNG unavailable here — use SVG export");
+ img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+}
+
+document.getElementById("btnXls").onclick=()=>{
+ const m=active();
+ const rows=[["OMAS assessment"],["Method",m.name],["Technique",m.tech],["Analyte",m.analyte],
+  ["Matrix",m.matrix],["Reference",m.ref],[],["No.","Criterion","Selected answer","Score"]];
+ CRITERIA.forEach((c,i)=>rows.push([c.n,c.title,m.answers[i].label,m.answers[i].score]));
+ rows.push([],["Total OMAS score",totalOf(m)],["Optimization gap",100-totalOf(m)],["Interpretation",bandOf(totalOf(m))]);
+ dl(new Blob(["\ufeff"+csvify(rows)],{type:"text/csv;charset=utf-8"}),"OMAS_"+safe(m.name)+".csv");
+ toast("Exported");
+};
+document.getElementById("btnSvg").onclick=()=>{
+ dl(new Blob([stackSVG(active(),true)],{type:"image/svg+xml"}),"OMAS_"+safe(active().name)+".svg");
+ toast("SVG downloaded");};
+document.getElementById("btnPng").onclick=()=>{
+ const s=stackSVG(active(),true),vb=/viewBox="0 0 (\d+) ([\d.]+)"/.exec(s);
+ svgToPng(s,+vb[1],+vb[2],"OMAS_"+safe(active().name)+".png");};
+
+document.getElementById("btnPdf").onclick=()=>{
+ const m=active(),t=totalOf(m);let rows="";
+ CRITERIA.forEach((c,i)=>rows+="<tr><td>"+c.n+"</td><td>"+c.title+"</td><td>"+m.answers[i].label+"</td><td>"+m.answers[i].score+"</td></tr>");
+ document.getElementById("report").innerHTML=
+  '<h1 style="font-size:19pt;color:#6B3E26;margin-bottom:1pt">OMAS assessment report</h1>'+
+  '<p style="font-size:9.5pt;color:#8A7561;margin-top:0">Assessing optimization quality in analytical method development</p>'+
+  '<table style="margin-bottom:12pt"><tr><th>Method</th><td>'+m.name+'</td></tr><tr><th>Technique</th><td>'+m.tech+'</td></tr>'+
+  '<tr><th>Analyte</th><td>'+m.analyte+'</td></tr><tr><th>Matrix</th><td>'+m.matrix+'</td></tr><tr><th>Reference</th><td>'+m.ref+'</td></tr></table>'+
+  '<table><thead><tr><th>No.</th><th>Criterion</th><th>Selected answer</th><th>Score</th></tr></thead><tbody>'+rows+
+  '<tr><td></td><td><b>Total OMAS score</b></td><td><b style="color:'+bandInfo(t).color+'">'+bandOf(t)+'</b></td><td><b style="color:'+bandInfo(t).color+'">'+t+'</b></td></tr>'+
+  '<tr><td></td><td>Optimization gap</td><td></td><td>'+(100-t)+'</td></tr></tbody></table>'+
+  '<div style="width:62mm;margin-top:12pt">'+stackSVG(m,true)+'</div>'+
+  '<p style="font-size:8.5pt;color:#8A7561;line-height:1.4">Block height corresponds to the score awarded for each criterion (0–10); the total OMAS score is the sum of the ten criterion scores (0–100). The optimization gap is the difference from the maximum attainable score. Criterion order follows Table S1 and is a display convention only; it does not imply a temporal sequence or hierarchy of importance.</p>';
+ window.print();
+};
+
+document.getElementById("cmpXls").onclick=()=>{
+ const list=completed();
+ const rows=[["OMAS method comparison"],[],["Field",...list.map(m=>m.name)],
+  ["Technique",...list.map(m=>m.tech)],["Analyte",...list.map(m=>m.analyte)],
+  ["Matrix",...list.map(m=>m.matrix)],["Reference",...list.map(m=>m.ref)],[],
+  ["No.","Criterion",...list.map(m=>m.name)]];
+ CRITERIA.forEach((c,i)=>rows.push([c.n,c.title,...list.map(m=>m.answers[i].score)]));
+ rows.push([],["","Total OMAS score",...list.map(totalOf)],
+  ["","Optimization gap",...list.map(m=>100-totalOf(m))],
+  ["","Interpretation",...list.map(m=>bandOf(totalOf(m)))]);
+ dl(new Blob(["\ufeff"+csvify(rows)],{type:"text/csv;charset=utf-8"}),"OMAS_comparison.csv");
+ toast("Comparison exported");
+};
+document.getElementById("cmpSvg").onclick=()=>{
+ dl(new Blob([radarSVG(completed(),hiddenM,true)],{type:"image/svg+xml"}),"OMAS_comparison_radar.svg");
+ toast("SVG downloaded");};
+document.getElementById("cmpPng").onclick=()=>svgToPng(radarSVG(completed(),hiddenM,true),320,328,"OMAS_comparison_radar.png");
+document.getElementById("cmpPdf").onclick=()=>{
+ const list=completed();
+ let head='<tr><th>No.</th><th>Criterion</th>'+list.map(m=>'<th>'+m.name+'</th>').join("")+'</tr>',rows="";
+ CRITERIA.forEach((c,i)=>{const vals=list.map(m=>m.answers[i].score),mx=Math.max(...vals);
+  rows+='<tr><td>'+c.n+'</td><td>'+c.title+'</td>'+
+   vals.map(v=>'<td'+(v===mx?' style="font-weight:700"':'')+'>'+v+'</td>').join("")+'</tr>';});
+ rows+='<tr><td></td><td><b>Total</b></td>'+list.map(m=>'<td><b style="color:'+bandInfo(totalOf(m)).color+'">'+totalOf(m)+'</b></td>').join("")+'</tr>';
+ rows+='<tr><td></td><td>Interpretation</td>'+list.map(m=>'<td>'+bandOf(totalOf(m))+'</td>').join("")+'</tr>';
+ rows+='<tr><td></td><td>Optimization gap</td>'+list.map(m=>'<td>'+(100-totalOf(m))+'</td>').join("")+'</tr>';
+ document.getElementById("report").innerHTML=
+  '<h1 style="font-size:19pt;color:#6B3E26;margin-bottom:1pt">OMAS method comparison</h1>'+
+  '<p style="font-size:9.5pt;color:#8A7561;margin-top:0">Assessing optimization quality in analytical method development</p>'+
+  '<table><thead>'+head+'</thead><tbody>'+rows+'</tbody></table>'+
+  '<div style="width:80mm;margin-top:12pt">'+radarSVG(list,new Set(),true)+'</div>'+
+  '<div style="margin-top:10pt;font-size:10pt"><ul>'+interpret(list).map(s=>"<li>"+s+"</li>").join("")+'</ul></div>';
+ window.print();
+};
+
+document.getElementById("btnReset").onclick=()=>{
+ active().answers=new Array(10).fill(null);openIndex=null;render();toast("Method reset");};
+
+document.getElementById("btnSave").onclick=async()=>{
+ try{await window.storage.set("omas:methods",JSON.stringify(methods));toast("Assessment saved");}
+ catch(e){toast("Saved for this session only");}
+};
+(async()=>{try{const r=await window.storage.get("omas:methods");
+ if(r&&r.value){const p=JSON.parse(r.value);if(Array.isArray(p)&&p.length){methods=p;activeId=methods[0].id;}}}
+ catch(e){} render();})();
+</script>
+</body>
+</html>
