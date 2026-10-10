@@ -93,6 +93,9 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:14p
 .opt:hover{background:var(--cream);border-color:var(--border)}
 .dot{flex:0 0 13px;height:13px;border-radius:50%;border:1.5px solid var(--border);transition:.12s}
 .opt:hover .dot{border-color:var(--orange);border-width:4px}
+.step{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:2px 10px 4px;display:flex;gap:10px;align-items:baseline}
+.step .change{margin-left:auto;text-transform:none;letter-spacing:0}
+.ex{font-size:12px;color:var(--muted)}
 
 aside{position:sticky;top:100px}
 @media (max-width:1080px){aside{position:static}}
@@ -280,13 +283,19 @@ const CRITERIA=[
  {n:3,title:"Effect of optimization on analytical performance",short:"Performance",q:"How much did analytical performance improve?",
   desc:"Measured gain in performance attributable to optimization.",
   opts:[["Significant improvement",10],["Moderate improvement",8],["Minor improvement",5],["No improvement",0]]},
- {n:4,title:"Prediction accuracy and model fitting",short:"Prediction",q:"How well did the model predict the optimum?",
-  desc:"Agreement between predicted and experimental optimum.",
-  opts:[["Prediction error below 2%, R² at least 0.99",10],["Prediction error 2–5%, R² 0.95–0.98",6],
-        ["Prediction error above 5%, or R² below 0.95",2],["Not reported",0]]},
+ {n:4,title:"Accuracy",short:"Accuracy",q:"What accuracy was demonstrated under the selected conditions?",
+  desc:"Reported recovery scored against the acceptance range of the selected matrix type.",
+  matrices:[
+   {name:"Major component — simple matrices",ex:"pharmaceutical assay, API assay, food major components",
+    opts:[["98–102%",10],["95–98% or 102–105%",6],["Outside 95–105%",2],["Not reported",0]]},
+   {name:"Trace — simple to moderately complex matrices",ex:"pharmaceutical impurities, residual solvents, elemental impurities, additives",
+    opts:[["90–110%",10],["80–90% or 110–120%",6],["Outside 80–120%",2],["Not reported",0]]},
+   {name:"Trace — complex matrices",ex:"environmental water, soil, sludge; plasma, serum, urine; pesticides, mycotoxins, veterinary drugs; forensic, clinical toxicology",
+    opts:[["80–110%",10],["70–80% or 110–120%",6],["Outside 70–120%",2],["Not reported",0]]}]},
  {n:5,title:"ANOVA model significance",short:"ANOVA",q:"What was the statistical significance of the model?",
   desc:"Statistical evidence that the model describes the response.",
-  opts:[["p below 0.001",10],["p between 0.001 and 0.05",6],["p above 0.05",2],["Not reported",0]]},
+  opts:[["Highly significant model (p <0.001)",10],["Significant model (p = 0.001–0.05)",6],
+        ["Non-significant model (p >0.05)",2],["Not applicable / no ANOVA-based optimization model (e.g., OFAT)",0]]},
  {n:6,title:"Robustness evaluation",short:"Robustness",q:"How was robustness evaluated after optimization?",
   desc:"Deliberate variation of parameters around the optimum.",
   opts:[["Three or more parameters tested",10],["One or two parameters tested",6],["No robustness testing",0]]},
@@ -318,7 +327,7 @@ const MSHAPE=["circle","square","triangle","diamond","cross"];
 
 /* ---------- state ---------- */
 const blank=i=>({id:"m"+Date.now()+Math.random().toString(36).slice(2,6),
-  name:"Method "+i,tech:"",analyte:"",matrix:"",ref:"",answers:new Array(10).fill(null)});
+  name:"Method "+i,tech:"",analyte:"",matrix:"",ref:"",accMatrix:null,answers:new Array(10).fill(null)});
 let methods=[blank(1)];
 let activeId=methods[0].id;
 let openIndex=null;
@@ -403,12 +412,24 @@ function renderCards(){
    ch.onclick=e=>{e.stopPropagation();m.answers[i]=null;openIndex=i;render();};
    head.querySelector(".picked").appendChild(ch);}
   if(open){const box=document.createElement("div");box.className="opts";
-   c.opts.forEach(([label,score])=>{const b=document.createElement("button");b.className="opt";
-    b.innerHTML='<span class="dot"></span><span>'+label+'</span>';
-    b.onclick=()=>{m.answers[i]={label,score};
-     const nx=m.answers.findIndex(x=>x===null);openIndex=nx===-1?null:nx;render();};
-    box.appendChild(b);});
-   card.appendChild(box);}
+   const mx=c.matrices&&m.accMatrix!=null?c.matrices[m.accMatrix]:null;
+   if(c.matrices&&!mx){
+    box.innerHTML='<div class="step">Step 1 — Select the matrix type</div>';
+    c.matrices.forEach((x,k)=>{const b=document.createElement("button");b.className="opt";
+     b.innerHTML='<span class="dot"></span><span>'+x.name+'<br><i class="ex">'+x.ex+'</i></span>';
+     b.onclick=()=>{m.accMatrix=k;renderCards();};
+     box.appendChild(b);});
+   }else{
+    if(mx){box.innerHTML='<div class="step">Step 2 — Reported recovery · '+mx.name+
+     ' <button class="change" id="chgMx">Change matrix</button></div>';}
+    (mx?mx.opts:c.opts).forEach(([label,score])=>{const b=document.createElement("button");b.className="opt";
+     b.innerHTML='<span class="dot"></span><span>'+label+'</span>';
+     b.onclick=()=>{m.answers[i]={label:mx?mx.name+": "+label:label,score};
+      const nx=m.answers.findIndex(x=>x===null);openIndex=nx===-1?null:nx;render();};
+     box.appendChild(b);});
+   }
+   card.appendChild(box);
+   const cm=box.querySelector("#chgMx");if(cm)cm.onclick=()=>{m.accMatrix=null;renderCards();};}
   wrap.appendChild(card);
  });
 }
@@ -670,7 +691,7 @@ document.getElementById("cmpPdf").onclick=()=>{
 };
 
 document.getElementById("btnReset").onclick=()=>{
- active().answers=new Array(10).fill(null);openIndex=null;render();toast("Method reset");};
+ active().answers=new Array(10).fill(null);active().accMatrix=null;openIndex=null;render();toast("Method reset");};
 
 document.getElementById("btnSave").onclick=async()=>{
  try{await window.storage.set("omas:methods",JSON.stringify(methods));toast("Assessment saved");}
